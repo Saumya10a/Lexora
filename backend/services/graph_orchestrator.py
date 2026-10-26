@@ -186,7 +186,7 @@ class MigrationGraph:
                 })
             try:
                 if model_name == "fine_tuned_hf":
-                    result = await self.translator.translate_with_local_hf(prompt)
+                    result = await self.translator.translate_with_local_hf(prompt, target_path=target_path)
                 else:
                     result = await self.translator.translate_with_api(prompt, model_name)
             except Exception as exc:

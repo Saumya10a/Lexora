@@ -268,10 +268,10 @@ Return only the complete translated source code in {target_lang}."""
         )
 
     async def translate_with_local_hf(
-        self, prompt: str
+        self, prompt: str, target_path: str = ""
     ) -> SingleModelTranslationResult:
         started = time.perf_counter()
-        translated_code = await asyncio.to_thread(self._generate_local_sync, prompt)
+        translated_code = await asyncio.to_thread(self._generate_local_sync, prompt, target_path)
         if not translated_code.strip():
             raise RuntimeError("fine_tuned_hf returned an empty translation")
         return SingleModelTranslationResult(
@@ -297,14 +297,14 @@ Return only the complete translated source code in {target_lang}."""
         hours, minutes, seconds = (float(value or 0) for value in match.groups())
         return hours * 3600 + minutes * 60 + seconds
 
-    def _generate_local_sync(self, prompt: str) -> str:
+    def _generate_local_sync(self, prompt: str, target_path: str = "") -> str:
         # Model initialization and generation are blocking; keep them off the event loop.
         with self._local_model_lock:
             if self._local_model is None:
                 from backend.services.finetune_service import LocalFineTunedModelInference
 
                 self._local_model = LocalFineTunedModelInference()
-            return self._local_model.generate_translation(prompt)
+            return self._local_model.generate_translation(prompt, target_path=target_path)
 
     async def execute_parallel_migration(
         self, request: MigrationRequest
