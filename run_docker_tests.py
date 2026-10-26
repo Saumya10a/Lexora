@@ -4,12 +4,10 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
 import uuid
 from pathlib import Path
 
-if TYPE_CHECKING:
-    from backend.models.schemas import CompilationResult
+from backend.models.schemas import CompilationResult
 
 OUTPUT_FILES = {
     "fine_tuned_hf": ("Model 1 (Fine-Tuned HF)", "fine_tuned_hf_output.py"),
