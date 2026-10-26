@@ -10,3 +10,8 @@ venv/
 outputs/*
 !outputs/.gitkeep
 models/lexora-lora-adapter/
+node_modules/
+dist/
+scratch/
+*.log
+*.tsbuildinfo

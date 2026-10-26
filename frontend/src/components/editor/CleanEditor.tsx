@@ -1,0 +1,3 @@
+import Editor from '@monaco-editor/react';
+type Props={value:string;language:string;onChange?:(value:string)=>void;readOnly?:boolean;minimap?:boolean};
+export default function CleanEditor({value,language,onChange,readOnly=false,minimap=false}:Props){return <Editor height="100%" language={language} value={value} onChange={v=>onChange?.(v??'')} theme="vs-light" options={{readOnly,automaticLayout:true,minimap:{enabled:minimap},fontFamily:'DM Mono, monospace',fontSize:13,lineHeight:22,padding:{top:18,bottom:12},scrollBeyondLastLine:false,wordWrap:'on',renderLineHighlight:'gutter',lineNumbers:'on',glyphMargin:false,folding:true,roundedSelection:false,overviewRulerBorder:false,hideCursorInOverviewRuler:true,contextmenu:true,tabSize:4}}/>}

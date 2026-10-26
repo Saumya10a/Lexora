@@ -65,6 +65,45 @@ class SingleModelTranslationResult(BaseModel):
     file_path: str
 
 
+class RepairAttemptLog(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    attempt_number: int
+    model_name: str
+    error_traceback: str
+    corrected_code: str
+    compilation_status: str
+
+
+class RepairLoopSummary(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    model_name: str
+    final_status: Literal["SUCCESS", "FAILED"]
+    total_attempts: int
+    attempt_history: list[RepairAttemptLog] = Field(default_factory=list)
+
+
+class ModelBenchmarkMetrics(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    model_name: str
+    first_pass_compile: bool
+    repair_attempts_needed: int = Field(ge=0)
+    final_compilation_status: str
+    passed_test_cases: int = Field(ge=0)
+    total_test_cases: int = Field(ge=0)
+    semantic_migration_accuracy: float = Field(ge=0.0, le=100.0)
+    latency_seconds: float = Field(ge=0.0)
+    migration_confidence_score: float = Field(ge=0.0, le=100.0)
+
+
+class BenchmarkReport(BaseModel):
+    migration_id: str
+    timestamp: datetime
+    models_evaluated: list[ModelBenchmarkMetrics]
+
+
 class MigrationResponse(BaseModel):
     migration_id: str
     source_language: str
@@ -72,6 +111,7 @@ class MigrationResponse(BaseModel):
     ast_metrics: dict[str, object]
     applied_rag_rules: list[dict[str, object]]
     results: list[SingleModelTranslationResult]
+    repair_summaries: list[RepairLoopSummary] = Field(default_factory=list)
 
 class CompilationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
@@ -90,3 +130,25 @@ class CompilationResult(BaseModel):
     stderr: str
     execution_time_seconds: float
     error_type: str
+
+
+class ProjectDeployRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_framework: Literal["spring-boot", "go-fiber", "node"]
+
+
+class ProjectDeployResponse(BaseModel):
+    migration_id: str
+    status: Literal["RUNNING"]
+    target_framework: str
+    host_port: int
+    base_url: str
+
+
+class ApiProxyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    method: Literal["GET", "POST"] = "GET"
+    route: str = Field(min_length=1, max_length=512)
+    body: dict[str, object] = Field(default_factory=dict)

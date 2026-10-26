@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
 from backend.models.schemas import CompilationResult
+from backend.services.post_processor import ExecutionBlockInjector
 
 try:
     import docker
@@ -74,17 +76,47 @@ class DockerSandboxCompiler:
             )
 
         container = None
+        processed_path: Path | None = None
         started = time.perf_counter()
         stdout = ""
         stderr = ""
         error_type = "None"
         status = "FAILED"
         try:
+            execution_path = candidate
+            if target_lang.lower() == "python":
+                try:
+                    normalized_code = ExecutionBlockInjector.process(
+                        candidate.read_text(encoding="utf-8")
+                    )
+                except (SyntaxError, UnicodeDecodeError) as exc:
+                    message = f"{type(exc).__name__}: {exc}"
+                    return CompilationResult(
+                        migration_id=migration_id,
+                        model_name=model_name,
+                        status="FAILED",
+                        stdout="",
+                        stderr=message,
+                        execution_time_seconds=time.perf_counter() - started,
+                        error_type=type(exc).__name__,
+                    )
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    suffix=".py",
+                    prefix=".lexora_exec_",
+                    dir=candidate.parent,
+                    delete=False,
+                ) as processed_file:
+                    processed_file.write(normalized_code)
+                    processed_path = Path(processed_file.name)
+                execution_path = processed_path
+
             container = self.docker_client.containers.run(
                 image=image,
                 command=["python", "-B", "/app/code.py"],
                 volumes={
-                    str(candidate): {"bind": "/app/code.py", "mode": "ro"}
+                    str(execution_path): {"bind": "/app/code.py", "mode": "ro"}
                 },
                 network_mode="none",
                 mem_limit="256m",
@@ -126,15 +158,20 @@ class DockerSandboxCompiler:
             if timed_out:
                 timeout_message = f"Execution timed out after {timeout_seconds} seconds."
                 stderr = f"{stderr.rstrip()}\n{timeout_message}".strip()
-            elif stderr.strip():
-                status = "FAILED"
-                error_type = self._extract_exception_type(stderr) or "RuntimeError"
             elif exit_code == 0:
-                status = "SUCCESS"
-                error_type = "None"
+                if not stderr and not stdout.strip():
+                    status = "FAILED"
+                    error_type = "SilentExecutionError"
+                    stderr = (
+                        "CRITICAL: The script compiled but produced absolutely no output. "
+                        "You forgot to call your functions."
+                    )
+                else:
+                    status = "SUCCESS"
+                    error_type = "None"
             else:
                 status = "FAILED"
-                error_type = "ExitCodeError"
+                error_type = self._extract_exception_type(stderr) or "ExitCodeError"
                 if not stderr:
                     stderr = f"Program exited with status code {exit_code}."
             return CompilationResult(
@@ -168,6 +205,11 @@ class DockerSandboxCompiler:
                 except Exception:
                     logger.exception("Failed to remove sandbox container")
                     self.last_cleanup_confirmed = False
+            if processed_path is not None:
+                try:
+                    processed_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.exception("Failed to remove post-processed source file")
 
     @staticmethod
     def _decode_logs(value: bytes | str) -> str:
