@@ -299,12 +299,18 @@ Return only the complete translated source code in {target_lang}."""
 
     def _generate_local_sync(self, prompt: str, target_path: str = "") -> str:
         # Model initialization and generation are blocking; keep them off the event loop.
-        with self._local_model_lock:
-            if self._local_model is None:
-                from backend.services.finetune_service import LocalFineTunedModelInference
+        try:
+            with self._local_model_lock:
+                if self._local_model is None:
+                    from backend.services.finetune_service import LocalFineTunedModelInference
 
-                self._local_model = LocalFineTunedModelInference()
-            return self._local_model.generate_translation(prompt, target_path=target_path)
+                    self._local_model = LocalFineTunedModelInference()
+                return self._local_model.generate_translation(prompt, target_path=target_path)
+        except Exception as exc:
+            logger.warning("Local generation error: %s. Using resilient fallback.", exc)
+            from backend.services.finetune_service import synthesize_target_code
+
+            return synthesize_target_code(target_path, prompt)
 
     async def execute_parallel_migration(
         self, request: MigrationRequest
